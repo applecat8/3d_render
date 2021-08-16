@@ -21,6 +21,44 @@ import javax.swing.SwingConstants;
  *
  */
 public class App {
+    public static Vertex getSide(Vertex v1, Vertex v2) {
+        return new Vertex(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
+    }
+
+    public static Color getShade(Color c, double shade) {
+        double redLinear = Math.pow(c.getRed(), 2.4) * shade;
+        double greenLinear = Math.pow(c.getGreen(), 2.4) * shade;
+        double blueLinear = Math.pow(c.getBlue(), 2.4) * shade;
+
+        int red = (int) Math.pow(redLinear, 1 / 2.4);
+        int green = (int) Math.pow(greenLinear, 1 / 2.4);
+        int blue = (int) Math.pow(blueLinear, 1 / 2.4);
+        return new Color(red, green, blue);
+    }
+
+    public static List<Triangle> inflate(List<Triangle> tris) {
+        List<Triangle> result = new ArrayList<>();
+        // 将一个大三角形分为四个小三角形
+        for (Triangle t : tris) {
+            Vertex m1 = new Vertex((t.v1.x + t.v2.x) / 2, (t.v1.y + t.v2.y) / 2, (t.v1.z + t.v2.z) / 2);
+            Vertex m2 = new Vertex((t.v2.x + t.v3.x) / 2, (t.v2.y + t.v3.y) / 2, (t.v2.z + t.v3.z) / 2);
+            Vertex m3 = new Vertex((t.v1.x + t.v3.x) / 2, (t.v1.y + t.v3.y) / 2, (t.v1.z + t.v3.z) / 2);
+            result.add(new Triangle(t.v1, m1, m3, t.color));
+            result.add(new Triangle(t.v2, m1, m2, t.color));
+            result.add(new Triangle(t.v3, m2, m3, t.color));
+            result.add(new Triangle(m1, m2, m3, t.color));
+        }
+        for (Triangle t : result) {
+            for (Vertex v : new Vertex[] { t.v1, t.v2, t.v3 }) {
+                double l = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) / Math.sqrt(30000);
+                v.x /= l;
+                v.y /= l;
+                v.z /= l;
+            }
+        }
+        return result;
+    }
+
     public static void main(String[] args) {
         System.out.println("Hello World!");
         JFrame frame = new JFrame();
@@ -44,6 +82,7 @@ public class App {
                 g2.setColor(Color.BLACK);
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
+                // 一个四面体
                 List<Triangle> tris = new ArrayList<>();
                 tris.add(new Triangle(new Vertex(100, 100, 100), new Vertex(-100, -100, 100),
                         new Vertex(-100, 100, -100), Color.WHITE));
@@ -53,47 +92,60 @@ public class App {
                         new Vertex(100, 100, 100), Color.GREEN));
                 tris.add(new Triangle(new Vertex(-100, 100, -100), new Vertex(100, -100, -100),
                         new Vertex(-100, -100, 100), Color.BLUE));
+                List<Triangle> sphere = inflate(inflate(inflate(inflate(tris))));
 
-                double heading = Math.toRadians(headingSlider.getValue());
                 // XZ 转换矩阵
+                double heading = Math.toRadians(headingSlider.getValue());
                 Matrix3 headingTransform = new Matrix3(new double[] { Math.cos(heading), 0, -Math.sin(heading), 0, 1, 0,
                         Math.sin(heading), 0, Math.cos(heading) }, 3, 3);
 
+                // YZ 转换矩阵
                 double pitch = Math.toRadians(pitchSlider.getValue());
                 Matrix3 pitchTransform = new Matrix3(new double[] { 1, 0, 0, 0, Math.cos(pitch), Math.sin(pitch), 0,
                         -Math.sin(pitch), Math.cos(pitch) }, 3, 3);
 
+                // 同时实现XZ 和 YZ 转换
                 Matrix3 transform = headingTransform.multiply(pitchTransform);
 
                 // g2.translate(getWidth() / 2, getHeight() / 2);
                 // g2.setColor(Color.WHITE);
 
                 BufferedImage img = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
-                // 存放img的深度值
+                // 存放三角形中最高的颜色的高度
                 // 用于展示颜色，最高的颜色展示出来
                 double[] zBuffer = new double[img.getWidth() * img.getHeight()];
                 for (int q = 0; q < zBuffer.length; q++) {
                     zBuffer[q] = Double.NEGATIVE_INFINITY; // 初始化为最小
                 }
-                tris.forEach(t -> {
+                sphere.forEach(t -> {
                     Vertex v1 = transform.transform(t.v1);
                     Vertex v2 = transform.transform(t.v2);
                     Vertex v3 = transform.transform(t.v3);
-                    // 不再使用Path2D
-                    // Path2D path = new Path2D.Double();
-                    // path.moveTo(v1.x, v1.y);
-                    // path.lineTo(v2.x, v2.y);
-                    // path.lineTo(v3.x, v3.y);
-                    // path.closePath();
-                    // g2.draw(path);
 
-                    // 自己实现转换
                     v1.x += getWidth() / 2;
                     v1.y += getHeight() / 2;
                     v2.x += getWidth() / 2;
                     v2.y += getHeight() / 2;
                     v3.x += getWidth() / 2;
                     v3.y += getHeight() / 2;
+
+                    // 两条边
+                    Vertex s1 = getSide(v1, v2);
+                    Vertex s2 = getSide(v1, v3);
+
+                    // 法向量
+                    Vertex norm = new Vertex(s1.y * s2.z - s1.z * s2.y, s1.z * s2.x - s1.x * s2.z,
+                            s1.x * s2.y - s2.y * s2.x);
+
+                    // norm的模
+                    double normalLength = Math.sqrt(norm.x * norm.x + norm.y * norm.y + norm.z * norm.z);
+                    // 标准化为单位法向量
+                    norm.x /= normalLength;
+                    norm.y /= normalLength;
+                    norm.z /= normalLength;
+
+                    // 光源的向量规定为[0, 0, 1], 则余弦角为
+                    double angleCos = Math.abs(norm.z);
 
                     // 计算三角形的矩形边界
                     int minX = (int) Math.max(0, Math.ceil(Math.min(v1.x, Math.min(v2.x, v3.x))));
@@ -114,7 +166,7 @@ public class App {
 
                             if (b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1 && b3 >= 0 && b3 <= 1
                                     && zBuffer[zIndex] < depth) { // 判断是否在范围内，且覆盖其他颜色
-                                img.setRGB(x, y, t.color.getRGB());
+                                img.setRGB(x, y, getShade(t.color, angleCos).getRGB());
                                 zBuffer[zIndex] = depth;
                             }
                         }
@@ -125,9 +177,7 @@ public class App {
         };
         pane.add(renderpPanel, BorderLayout.CENTER);
 
-        /**
-         * 添加事件监听
-         **/
+        // 添加时间监听
         headingSlider.addChangeListener(e -> renderpPanel.repaint());
         pitchSlider.addChangeListener(e -> renderpPanel.repaint());
 
