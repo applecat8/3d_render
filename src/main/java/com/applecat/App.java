@@ -92,7 +92,8 @@ public class App {
                         new Vertex(100, 100, 100), Color.GREEN));
                 tris.add(new Triangle(new Vertex(-100, 100, -100), new Vertex(100, -100, -100),
                         new Vertex(-100, -100, 100), Color.BLUE));
-                List<Triangle> sphere = inflate(inflate(inflate(inflate(tris))));
+
+                // List<Triangle> sphere = inflate(inflate(inflate(inflate(tris))));
 
                 // XZ 转换矩阵
                 double heading = Math.toRadians(headingSlider.getValue());
@@ -117,7 +118,7 @@ public class App {
                 for (int q = 0; q < zBuffer.length; q++) {
                     zBuffer[q] = Double.NEGATIVE_INFINITY; // 初始化为最小
                 }
-                sphere.forEach(t -> {
+                tris.forEach(t -> {
                     Vertex v1 = transform.transform(t.v1);
                     Vertex v2 = transform.transform(t.v2);
                     Vertex v3 = transform.transform(t.v3);
